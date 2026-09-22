@@ -1,0 +1,253 @@
+@import "tailwindcss";
+
+@theme {
+  /* Near-white canvas + near-black ink, a quiet neutral register instead
+     of a brand color competing for attention. White is reserved for
+     surfaces that are actively presenting a result (a rule the agent
+     found, a drafted complaint) — the "card" tone — so a result still
+     visually lifts off the page underneath it. Black is never reused as a
+     status color. */
+  --color-brand: #171717;
+  --color-brand-ink: #000000;
+
+  --color-paper: #fafafa;
+  --color-paper-alt: #f0f0f0;
+  --color-card: #ffffff;
+  --color-ink: #171717;
+  --color-ink-soft: #737373;
+  --color-line: #e5e5e5;
+
+  /* Only two functional status hues, not the usual green/amber/red
+     traffic light: green for "handled," red for "needs you." A medium
+     confidence or a "needs more info" verdict isn't a warning, so
+     "caution" is a neutral, uncolored chip rather than a third hue. Kept
+     distinct from --color-brand (near-black) so "this is resolved" never
+     gets confused with the brand's own color. */
+  --color-positive: #178a3e;
+  --color-positive-soft: #e6f6ea;
+  --color-caution: #737373;
+  --color-caution-soft: #f0f0f0;
+  --color-negative: #c1443a;
+  --color-negative-soft: #fdeceb;
+
+  /* Reserved for exactly one place: the Resolved screen's total. Nowhere
+     else in the product uses this color — that's what makes it read as
+     "this one's different, it's over, you won." */
+  --color-brass: #b6832f;
+
+  --font-sans: var(--display-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--numeral-mono), ui-monospace, "SFMono-Regular", monospace;
+}
+
+html,
+body {
+  background: var(--color-paper);
+  /* This layout is single-column and never intentionally scrolls
+     sideways. Belt-and-suspenders alongside the font-size fix below: that
+     fix removes the trigger, this keeps any other stray sub-pixel overflow
+     from ever becoming a visible horizontal pan. */
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
+}
+
+/* The actual cause of that: iOS Safari auto-zooms the whole page on focus
+   for any text input under 16px, then can leave the page mis-panned after
+   (header clipped on one edge, the composer sitting under Safari's own
+   toolbar) — this app's inputs all use the same 14px (text-sm) body scale
+   as everything else, so every one of them was tripping it. Forced back up
+   to 16px here, once, instead of fixing each input's className — only on
+   screens narrower than the desktop breakpoint (lg, 1024px), since a
+   mouse-driven desktop browser never triggers this and doesn't need the
+   larger size. Plain element selectors here beat Tailwind's text-sm
+   utility class without !important: Tailwind v4 emits utilities inside a
+   cascade layer, and an unlayered rule always wins over a layered one. */
+@media (max-width: 1023px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
+/* The small caption above a value ("The rule", "Due", "Company") — spaced
+   caps instead of just small+soft, so a screen reads as tiered information
+   (label, then value) at a glance instead of everything sitting at the same
+   type size. Used everywhere a field or block needs a name, never for
+   prose. */
+.label-caps {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+  opacity: 0.85;
+}
+
+/* The agent avatar's idle presence: a slow outward "breathing" ring behind
+   a static core, so the screen reads as something waiting, not a blank
+   input. Kept slow and low-amplitude on purpose — this should read as calm
+   presence, not a loading spinner. */
+@keyframes agent-breathe {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.55;
+  }
+  70% {
+    transform: scale(1.55);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.55);
+    opacity: 0;
+  }
+}
+
+.animate-agent-breathe {
+  animation: agent-breathe 2.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Each line of a narrated sequence (Reading, Rule card, Reply read) settles
+   in as its own step completes, instead of the whole block appearing at
+   once — the visual counterpart to useSequentialReveal's staggered timing. */
+@keyframes step-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-step-in {
+  animation: step-in 0.25s ease-out;
+}
+
+/* A narration line that's pure pacing ("Checking which rules apply..."),
+   not yet a fact — the same shimmering-text loading state most AI products
+   use for "still working on this," so a line the model hasn't actually
+   answered yet never reads identically to plain settled text. Only ever
+   applied to PACING_STEP_IDS-style lines, never to a line carrying a real
+   result. */
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.animate-shimmer {
+  background-image: linear-gradient(
+    100deg,
+    var(--color-ink-soft) 40%,
+    var(--color-ink) 50%,
+    var(--color-ink-soft) 60%
+  );
+  background-size: 250% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  animation: shimmer 1.8s linear infinite;
+}
+
+/* Both animations are purely decorative motion layered on top of content
+   that's already fully present (the breathing ring is a duplicate circle,
+   step-in's keyframe end-state is just opacity:1/no transform) — so turning
+   the animation off is itself the "instant equivalent," not a loss of
+   information. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-agent-breathe {
+    animation: none;
+    opacity: 0;
+  }
+
+  .animate-step-in {
+    animation: none;
+  }
+
+  /* The shimmer itself is decorative; the fact that this line is still
+     "working" isn't, so it can't just vanish along with the animation the
+     way the other two do here — it falls back to plain, static ink-soft
+     text instead of an unmoving gradient. */
+  .animate-shimmer {
+    animation: none;
+    background-image: none;
+    background-clip: unset;
+    -webkit-background-clip: unset;
+    color: var(--color-ink-soft);
+  }
+}
+
+/* A card joining the thread (a new state pushed onto history) is a bigger
+   moment than one narrated line settling in — it gets a touch more travel
+   and a slower, "ease-out-expo" curve (the same family Linear/Vercel-style
+   products use for panel entrances) so the product feels like it's handing
+   you something, not just re-rendering. Kept to opacity+transform only so
+   reduced-motion's "skip to end state" trick still works unchanged. */
+@keyframes card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-card-enter {
+  animation: card-enter 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-card-enter {
+    animation: none;
+  }
+}
+
+/* The one card currently live (the last in the thread, still awaiting a
+   tap) lifts slightly off the page — a physical stand-in for "this is the
+   one I'm waiting on you for." Settled cards above it stay flat. */
+.shadow-card {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 20px -6px rgba(0, 0, 0, 0.1);
+}
+
+/* The cases drawer's slide/fade (CaseDrawer.tsx) is driven entirely by
+   Tailwind's `transition`/`translate-x`/`opacity` utilities rather than a
+   dedicated keyframe — but it still needs to respect reduced motion the
+   same as every other animation here, since Tailwind's own `transition`
+   utility doesn't do that on its own. */
+@media (prefers-reduced-motion: reduce) {
+  .transition {
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Resolved's one deliberate moment of craft: the total gets ruled off, the
+   way a settled account is ruled off in an actual ledger book. The path
+   carries pathLength="100" so this animates the same regardless of the
+   curve's real geometry. */
+@keyframes rule-draw {
+  from {
+    stroke-dashoffset: 100;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.animate-rule-draw {
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  animation: rule-draw 0.8s 0.15s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rule-draw {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}
